@@ -1,0 +1,71 @@
+def split_csv_line(line):
+    """Split a CSV line into fields handling quoted values and doubled quotes."""
+    fields = []
+    cur = []
+    in_quotes = False
+    i = 0
+    while i < len(line):
+        c = line[i]
+        if c == '"':
+            # handle doubled quotes inside quoted field
+            if in_quotes and i + 1 < len(line) and line[i + 1] == '"':
+                cur.append('"')
+                i += 1
+            else:
+                in_quotes = not in_quotes
+        elif c == ',' and not in_quotes:
+            fields.append(''.join(cur))
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    fields.append(''.join(cur))
+    return fields
+
+def remove_duplicates(input_path, output_path):
+    """
+    Remove duplicate movies using Title+Year as key.
+    Reads input_path and writes deduplicated rows to output_path.
+    """
+    seen = set()
+    with open(input_path, 'r', encoding='utf-8', errors='replace') as fin, \
+         open(output_path, 'w', encoding='utf-8', newline='') as fout:
+        header = fin.readline()
+        if not header:
+            return
+        fout.write(header)
+        header_fields = split_csv_line(header.rstrip('\n'))
+        # normalize header names for lookup
+        norm = [h.strip().strip('"') for h in header_fields]
+        try:
+            idx_title = norm.index('Title')
+        except ValueError:
+            idx_title = 1  # fallback: second column
+        try:
+            idx_year = norm.index('Year')
+        except ValueError:
+            idx_year = 2  # fallback: third column
+
+        for line in fin:
+            if not line.strip():
+                continue
+            fields = split_csv_line(line.rstrip('\n'))
+            # guard if parsing returned fewer fields than header
+            if max(idx_title, idx_year) >= len(fields):
+                # write it (or skip) — here we write to preserve data
+                fout.write(line)
+                continue
+            title = fields[idx_title].strip().strip('"').lower()
+            year = fields[idx_year].strip().strip('"')
+            key = (title, year)
+            if key in seen:
+                continue
+            seen.add(key)
+            fout.write(line)
+
+if __name__ == '__main__':
+    # adjust paths as needed (Windows example)
+    input_csv = r"c:\Users\hubba\Downloads\imdb-movies-dataset\imdb-movies-dataset.csv"
+    output_csv = r"c:\Users\hubba\Downloads\imdb-movies-dataset\imdb-movies-dataset-deduped.csv"
+    remove_duplicates(input_csv, output_csv)
+    print("Done — cleaned file written to:", output_csv)
